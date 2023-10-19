@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use App\Models\Playlist;
+use App\Models\Song;
 
 class User extends Authenticatable
 {
@@ -42,4 +44,14 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
     ];
+
+    public function playlists()
+    {
+        return $this->hasMany(Playlist::class, 'user_id');
+    }
+
+    public function songs()
+    {
+        return $this->hasMany(Song::class, 'user_id');
+    }
 }
