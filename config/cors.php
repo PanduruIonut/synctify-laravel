@@ -31,4 +31,10 @@ return [
 
     'supports_credentials' => false,
 
+    'supportedContentTypes' => [
+        'model/gltf-binary',
+        'application/json',
+        'text/html',
+    ],
+
 ];
