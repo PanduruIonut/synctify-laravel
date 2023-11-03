@@ -20,3 +20,4 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 });
 
 Route::post('/callback', [SpotifyController::class, 'callback']);
+Route::post('/me', [SpotifyController::class, 'me']);

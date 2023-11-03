@@ -59,4 +59,28 @@ class SpotifyController extends Controller
         }
         return $auth_response_data;
     }
+
+
+public function me(Request $request){
+        $data = $request->json()->all();
+
+        $access_token = $data['access_token'];
+
+        if (!$access_token) {
+            throw new Exception('Access token not found. Please authorize the app first.');
+        }
+
+        $headers = [
+            'Authorization' => 'Bearer ' . $access_token,
+            'Content-Type' => 'application/json'
+        ];
+
+        $spotify_response = Http::withHeaders($headers)->get('https://api.spotify.com/v1/me');
+        if ($spotify_response->status() == 200) {
+            $response_data = $spotify_response->json();
+            return $response_data;
+        } else {
+            throw new Exception('Failed to fetch Spotify data');
+        }
+    }
 }
