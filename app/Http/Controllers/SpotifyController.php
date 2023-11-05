@@ -9,6 +9,8 @@ use App\Models\User;
 use App\Models\Song;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
+use Exception;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class SpotifyController extends Controller
 {
@@ -158,6 +160,12 @@ class SpotifyController extends Controller
                 $offset += $limit;
             }
 
+            if (!$user->playlists()->where('name', 'Liked Songs Playlist')->exists()) {
+                $user->playlists()->create([
+                    'name' => 'Liked Songs Playlist',
+                ]);
+            }
+            $likedSongsPlaylist = $user->playlists()->where('name', 'Liked Songs Playlist')->first();
 
             foreach ($all_liked_songs as $song) {
                 $title = $song['track']['name'];
@@ -174,25 +182,27 @@ class SpotifyController extends Controller
 
 
 
-                $songRecord = Song::updateOrCreate(
-                    ['title' => $title, 'artists' => $artists, 'album' => $album, 'images' => $images, 'preview_url' => $preview_url,
-                'added_at' => $added_at],
-                    [
+                $existingSongCount = Song::join('playlist_song', 'songs.id', '=', 'playlist_song.song_id')
+                    ->where('playlist_song.playlist_id', $likedSongsPlaylist->id)
+                    ->where('songs.title', $title)
+                    ->where('songs.artists', $artists)
+                    ->where('songs.album', $album)
+                    ->count();
+
+                if ($existingSongCount > 0) {
+                    continue;
+                } else {
+                    $songRecord = Song::create([
                         'title' => $title,
                         'artists' => $artists,
                         'album' => $album,
                         'images' => json_encode($song['track']['album']['images']),
                         'preview_url' => $preview_url,
                         'added_at' => $added_at,
-                    ]
-                );
-                if (!$user->playlists()->where('name', 'Liked Songs Playlist')->exists()) {
-                    $user->playlists()->create([
-                        'name' => 'Liked Songs Playlist',
                     ]);
+
+                    $likedSongsPlaylist->songs()->attach($songRecord->id);
                 }
-                $likedSongsPlaylist = $user->playlists()->where('name', 'Liked Songs Playlist')->first();
-                $likedSongsPlaylist->songs()->attach($songRecord->id);
             }
 
             $playlistName = 'Liked Songs Playlist';
@@ -220,7 +230,7 @@ class SpotifyController extends Controller
 
             DB::commit();
 
-            return response()->json(['message' => 'Playlist created with liked songs!'], 200);
+            return response('', 200)->header('Content-Type', 'application/json');
         } catch (Exception $e) {
             DB::rollBack();
             return response()->json(['error' => $e->getMessage()], 500);
