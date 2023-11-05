@@ -14,18 +14,12 @@ return new class extends Migration
         Schema::create('songs', function (Blueprint $table) {
             $table->id();
             $table->timestamps();
-
-            $table->string('name')->unique();
-            $table->string('description');
-            $table->json('artists');
-
-            $table->unsignedBigInteger('user_id');
-            $table->foreign('user_id')->references('id')->on('users');
-
+            $table->string('title');
+            $table->string('artists')->default('')->nullable();
             $table->string('album');
-            $table->string('preview_url');
-            $table->json('images');
-            $table->string('added_at');
+            $table->string('preview_url')->nullable();
+            $table->json('images')->nullable();
+            $table->dateTime('added_at')->nullable();
         });
     }
 
