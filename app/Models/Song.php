@@ -10,11 +10,10 @@ class Song extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'description', 'user_id', 'album'];
+    protected $fillable = ['name', 'user_id', 'album', 'title', 'artists', 'preview_url', 'images', 'added_at'];
 
-
-    public function user()
+    public function playlists()
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->belongsToMany(Playlist::class, 'playlist_song', 'song_id', 'playlist_id');
     }
 }
