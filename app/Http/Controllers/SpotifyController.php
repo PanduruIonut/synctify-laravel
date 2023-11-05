@@ -57,6 +57,17 @@ class SpotifyController extends Controller
             if ($user) {
                 $user->is_active = true;
                 $user->save();
+            } else {
+                $user_data = [
+                    'spotify_id' => $response_data['id'],
+                    'name' => $response_data['display_name'],
+                    'access_token' => $access_token,
+                    'refresh_token' => $auth_response_data['refresh_token'],
+                    'expires_in' => $auth_response_data['expires_in'],
+                    'client_id' => $CLIENT_ID,
+                    'client_secret' => $CLIENT_SECRET,
+                ];
+                $user = User::create($user_data);
             }
         }
         return $auth_response_data;
@@ -101,7 +112,7 @@ class SpotifyController extends Controller
         $this->sync_playlist($access_token, $refresh_token, $expires_in);
     }
 
-    public function sync_playlist(
+    public static function sync_playlist(
         $access_token,
         $refresh_token,
         $expires_in
@@ -250,4 +261,76 @@ class SpotifyController extends Controller
             return response()->json(['error' => 'No liked songs found'], 404);
         }
     }
+
+    public static function refresh_access_token($client_id, $client_secret, $refresh_token)
+    {
+        $token_url = "https://accounts.spotify.com/api/token";
+        $data = [
+            'scope' => 'user-top-read',
+            'grant_type' => 'refresh_token',
+            'refresh_token' => $refresh_token,
+            'client_id' => $client_id,
+            'client_secret' => $client_secret,
+        ];
+
+        $response = Http::withHeaders([
+            'Content-Type' => 'application/x-www-form-urlencoded',
+        ])->asForm()->post($token_url, $data);
+
+        if ($response->status() == 200) {
+            $token_data = $response->json();
+            $new_access_token = $token_data['access_token'];
+            $user = User::where('client_id', $client_id)->first();
+            $user->access_token = $new_access_token;
+            $user->save();
+            return $new_access_token;
+        } else {
+            throw new Exception("Token refresh failed");
+        }
+    }
+
+    public function refresh_token(Request $request)
+    {
+        $data = $request->all();
+
+        $user_id = $data['user_id'];
+        $refresh_token = $data['refresh_token'];
+        $client_secret = $data['client_id'];
+        $client_id = $data['client_secret'];
+
+        $user = User::where('spotify_id', $user_id)->first();
+
+        if (!$user) {
+            throw new Exception("User not found");
+        }
+
+        $token_url = "https://accounts.spotify.com/api/token";
+        $data = [
+            'scope' => 'user-top-read',
+            'grant_type' => 'refresh_token',
+            'refresh_token' => $refresh_token,
+            'client_id' => $client_id,
+            'client_secret' => $client_secret,
+        ];
+
+        $response = Http::withHeaders([
+            'Content-Type' => 'application/x-www-form-urlencoded',
+        ])->asForm()->post($token_url, $data);
+
+        if ($response->status() != 200) {
+            throw new Exception("Token refresh failed");
+        }
+
+        $token_data = $response->json();
+        $new_access_token = $token_data['access_token'];
+
+        $user->access_token = $new_access_token;
+        $user->save();
+
+        return response()->json([
+            "message" => "Token refreshed successfully",
+            "new_access_token" => $new_access_token
+        ], 200);
+    }
+
 }

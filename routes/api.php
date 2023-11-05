@@ -23,4 +23,5 @@ Route::post('/callback', [SpotifyController::class, 'callback']);
 Route::post('/me', [SpotifyController::class, 'me']);
 Route::post('/create_playlist', [SpotifyController::class, 'create_playlist']);
 Route::get('/user/get_liked_songs/{id}', [SpotifyController::class, 'get_liked_songs']);
+Route::post('/user/refresh_token', [SpotifyController::class, 'refresh_token']);
 

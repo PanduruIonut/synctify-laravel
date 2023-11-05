@@ -18,6 +18,8 @@ return new class extends Migration
             $table->string('spotify_id')->unique();
             $table->longText('access_token')->nullable();
             $table->string('refresh_token')->nullable();
+            $table->string('client_id')->nullable();
+            $table->string('client_secret')->nullable();
             $table->unsignedBigInteger('expires_in')->nullable();;
         });
 
