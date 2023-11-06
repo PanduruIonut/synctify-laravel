@@ -21,7 +21,8 @@ services:
     command: /var/www/html/entrypoint.sh
 
   mysql_db:
-    image: mysql:latest
+    #image: mysql:latest
+    image: linuxserver/mariadb:alpine
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: laravel
