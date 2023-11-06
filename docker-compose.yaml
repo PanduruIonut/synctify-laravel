@@ -1,0 +1,29 @@
+version: '3'
+services:
+
+  laravel-docker:
+    build:
+      context: .
+      dockerfile: ./dockerfiles/laravel/Dockerfile
+    volumes:
+      - ./:/var/www/html
+    ports:
+      - "8000:8000"
+    environment:
+      DB_CONNECTION: mysql
+      DB_HOST: mysql_db
+      DB_PORT: 3306
+      DB_DATABASE: laravel
+      DB_USERNAME: root
+      DB_PASSWORD: root
+    depends_on:
+      - mysql_db
+    command: /var/www/html/entrypoint.sh
+
+  mysql_db:
+    image: mysql:latest
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: laravel
+    ports:
+      - "3309:3306"
