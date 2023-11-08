@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
 use Exception;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+use App\Jobs\SyncLikedSongs as SyncLikedSongsJob;
 
 class SpotifyController extends Controller
 {
@@ -56,6 +57,9 @@ class SpotifyController extends Controller
             $user = User::where('spotify_id', $user_id)->first();
             if ($user) {
                 $user->is_active = true;
+                $user->access_token = $access_token;
+                $user->refresh_token = $auth_response_data['refresh_token'];
+                $user->expires_in = $auth_response_data['expires_in'];
                 $user->save();
             } else {
                 $user_data = [
@@ -118,134 +122,9 @@ class SpotifyController extends Controller
         $expires_in
     ) {
 
-        if (!$access_token) {
-            return response()->json(['error' => 'Access token not found. Please authorize the app first.'], 400);
-        }
+        dispatch(new SyncLikedSongsJob($access_token, $refresh_token, $expires_in));
 
-        $headers = [
-            'Authorization' => 'Bearer ' . $access_token,
-            'Content-Type' => 'application/json',
-        ];
-
-        $me_response = Http::withHeaders($headers)->get('https://api.spotify.com/v1/me');
-        $user_email = null;
-        if (isset($me_response->json()['email'])) {
-            $user_email = $me_response->json()['email'];
-        }
-        $spotify_id = $me_response->json()['id'];
-        $name = $me_response->json()['display_name'];
-
-        DB::beginTransaction();
-
-        try {
-            $user = User::where('spotify_id', $spotify_id)->first();
-
-            if (!$user) {
-                $user_data = [
-                    'email' => $user_email,
-                    'spotify_id' => $spotify_id,
-                    'name' => $name,
-                ];
-
-                $user = User::create($user_data);
-                $user->access_token = $access_token;
-                $user->refresh_token = $refresh_token;
-                $user->expires_in = $expires_in;
-                $user->save();
-            }
-
-            $all_liked_songs = [];
-            $offset = 0;
-            $limit = 50;
-
-            while (true) {
-                $endpoint_liked_songs = "https://api.spotify.com/v1/me/tracks?limit={$limit}&offset={$offset}";
-                $response_liked_songs = Http::withHeaders($headers)->get($endpoint_liked_songs);
-                $liked_songs = $response_liked_songs->json()['items'];
-
-                if (empty($liked_songs)) {
-                    break;
-                }
-
-                $all_liked_songs = array_merge($all_liked_songs, $liked_songs);
-                $offset += $limit;
-            }
-
-            if (!$user->playlists()->where('name', 'Liked Songs Playlist')->exists()) {
-                $user->playlists()->create([
-                    'name' => 'Liked Songs Playlist',
-                ]);
-            }
-            $likedSongsPlaylist = $user->playlists()->where('name', 'Liked Songs Playlist')->first();
-
-            foreach ($all_liked_songs as $song) {
-                $title = $song['track']['name'];
-
-                $artistNames = $song['track']['artists'];
-                $artistNames = array_column($artistNames, 'name');
-                $artists = implode(', ', $artistNames);
-
-                $album = $song['track']['album']['name'];
-                $images = json_encode($song['track']['album']['images']);
-                $preview_url = $song['track']['preview_url'];
-                $addedAt = Carbon::createFromTimestamp(strtotime($song['added_at']));
-                $added_at = $addedAt->format("Y-m-d H:i:s");
-
-
-
-                $existingSongCount = Song::join('playlist_song', 'songs.id', '=', 'playlist_song.song_id')
-                    ->where('playlist_song.playlist_id', $likedSongsPlaylist->id)
-                    ->where('songs.title', $title)
-                    ->where('songs.artists', $artists)
-                    ->where('songs.album', $album)
-                    ->count();
-
-                if ($existingSongCount > 0) {
-                    continue;
-                } else {
-                    $songRecord = Song::create([
-                        'title' => $title,
-                        'artists' => $artists,
-                        'album' => $album,
-                        'images' => json_encode($song['track']['album']['images']),
-                        'preview_url' => $preview_url,
-                        'added_at' => $added_at,
-                    ]);
-
-                    $likedSongsPlaylist->songs()->attach($songRecord->id);
-                }
-            }
-
-            $playlistName = 'Liked Songs Playlist';
-            $playlistResponse = Http::withHeaders($headers)
-                ->post('https://api.spotify.com/v1/me/playlists', [
-                    'name' => $playlistName,
-                    'public' => false,
-                ]);
-            $playlistData = $playlistResponse->json();
-            $playlistId = $playlistData['id'];
-
-            $playlistTracksEndpoint = "https://api.spotify.com/v1/playlists/{$playlistId}/tracks";
-            $track_uris = [];
-
-            foreach ($all_liked_songs as $likedSong) {
-                $track_uris[] = $likedSong['track']['uri'];
-            }
-
-            $tracksChunks = array_chunk($track_uris, 100);
-
-            foreach ($tracksChunks as $chunk) {
-                Http::withHeaders($headers)
-                    ->post($playlistTracksEndpoint, ['uris' => $chunk]);
-            }
-
-            DB::commit();
-
-            return response('', 200)->header('Content-Type', 'application/json');
-        } catch (Exception $e) {
-            DB::rollBack();
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
+        return response()->json(['message' => 'Sync job has been started.'], 202);
     }
 
     public function get_liked_songs($spotify_id)
@@ -332,5 +211,4 @@ class SpotifyController extends Controller
             "new_access_token" => $new_access_token
         ], 200);
     }
-
 }
