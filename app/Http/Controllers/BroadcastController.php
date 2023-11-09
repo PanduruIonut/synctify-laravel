@@ -21,7 +21,7 @@ class BroadcastController extends Controller
         }
 
         $pusher = new Pusher(config('broadcasting.connections.pusher.key'), config('broadcasting.connections.pusher.secret'), config('broadcasting.connections.pusher.app_id'));
-        $auth=$pusher->socket_auth($request->input('channel_name'), $request->input('socket_id'));
+        $auth=$pusher->authorizeChannel($request->input('channel_name'), $request->input('socket_id'));
         return response($auth);
     }
 }
