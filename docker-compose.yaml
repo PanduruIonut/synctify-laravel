@@ -19,6 +19,8 @@ services:
     depends_on:
       - mysql_db
     command: /var/www/html/entrypoint.sh
+    networks:
+      - synctify-network
 
   mysql_db:
     #image: mysql:latest
@@ -28,3 +30,40 @@ services:
       MYSQL_DATABASE: laravel
     ports:
       - "3309:3306"
+    networks:
+      - synctify-network
+
+  redis:
+    image: arm64v8/redis
+    ports:
+      - "6379:6379"
+    networks:
+      - synctify-network
+
+  echo-server:
+    build:
+      context: .
+      dockerfile: ./dockerfiles/echo/Dockerfile
+    working_dir: /app
+    ports:
+      - 6001:6001
+    networks:
+      - synctify-network
+
+  queue-worker:
+    build:
+      context: .
+      dockerfile: ./dockerfiles/laravel/Dockerfile
+    volumes:
+      - .:/var/www/html
+    command: php artisan queue:listen --verbose --tries=3 --timeout=600
+    restart: always
+
+    depends_on:
+      - mysql_db
+      - redis
+    networks:
+      - synctify-network
+networks:
+  synctify-network:
+    driver: bridge
