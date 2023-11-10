@@ -10,7 +10,8 @@ RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
 RUN php composer-setup.php --install-dir=/usr/local/bin --filename=composer
 RUN php -r "unlink('composer-setup.php');"
 RUN docker-php-ext-install gd pdo pdo_mysql
-RUN echo "memory_limit=512M" > /usr/local/etc/php/conf.d/docker-php-memory-limit.ini
+RUN echo "memory_limit=512M" > /usr/local/etc/php/conf.d/docker-php-memory-limit.ini \
+    && echo "extension=redis.so" > /usr/local/etc/php/conf.d/docker-php-redis.ini
 
 COPY . .
 
