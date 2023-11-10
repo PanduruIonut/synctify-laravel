@@ -7,6 +7,7 @@ use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 use App\Models\User;
 use Carbon\Carbon;
 use App\Http\Controllers\SpotifyController;
+use Illuminate\Support\Facades\Log;
 
 class Kernel extends ConsoleKernel
 {
@@ -27,6 +28,7 @@ class Kernel extends ConsoleKernel
         })->everySixHours();
 
         $schedule->call(function () {
+            Log::info('Check if token is about to expire.');
             $users = User::all();
 
             foreach ($users as $user) {
