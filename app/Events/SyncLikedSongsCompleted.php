@@ -16,12 +16,15 @@ class SyncLikedSongsCompleted implements ShouldBroadcast
     public $status;
     public $status_code;
     public $user_id;
+    public $current_time;
 
     public function __construct($response) {
         $this->status = $response['status'];
         $this->status_code = $response['status_code'];
         $this->user_id = $response['user_id'];
+        $this->current_time = now();
         Log::info('SyncLikedSongsCompleted event fired.');
+
     }
     public function broadcastOn()
     {
