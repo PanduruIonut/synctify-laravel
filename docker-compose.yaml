@@ -34,7 +34,8 @@ services:
       - synctify-network
 
   redis:
-    image: arm64v8/redis
+    # image: arm64v8/redis  // m1
+    image: arm32v7/redis
     ports:
       - "6379:6379"
     networks:
