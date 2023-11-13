@@ -16,16 +16,7 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        $schedule->call(function () {
-            $users = User::all();
-            foreach ($users as $user) {
-                if ($user->is_active) {
-                    Log::info('Syncing playlist for user ' . $user->id);
-                    SpotifyController::sync_playlist($user->access_token, $user->refresh_token, $user->expires_in);
-                    Log::info('Playlist synced for user ' . $user->id);
-                }
-            }
-        })->everySixHours();
+        $schedule->command('app:sync-liked-songs-playlist')->everySixHours();
 
         $schedule->call(function () {
             Log::info('Check if token is about to expire.');

@@ -160,6 +160,9 @@ class SyncLikedSongs implements ShouldQueue
                         ->post($playlistTracksEndpoint, ['uris' => $chunk]);
                 }
 
+                $likedSongsPlaylist->last_sync = Carbon::now();
+                $likedSongsPlaylist->next_sync = Carbon::now()->addHours(6);
+                $likedSongsPlaylist->save();
                 DB::commit();
 
                     event(new SyncLikedSongsCompleted(['status' => 'Sync playlist completed.', 'status_code' => 200, 'user_id' => $user->spotify_id]));
