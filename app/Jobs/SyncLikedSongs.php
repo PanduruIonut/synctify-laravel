@@ -17,6 +17,7 @@ use App\Events\SyncLikedSongsCompleted;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use App\Models\Playlist;
+use App\Jobs\DeletePlaylistSongs;
 
 class SyncLikedSongs implements ShouldQueue
 {
@@ -102,6 +103,7 @@ class SyncLikedSongs implements ShouldQueue
                 foreach ($all_liked_songs as $song) {
                     $title = $song['track']['name'];
 
+                    $spotify_uri = $song['track']['uri'];
                     $artistNames = $song['track']['artists'];
                     $artistNames = array_column($artistNames, 'name');
                     $artists = implode(', ', $artistNames);
@@ -119,6 +121,9 @@ class SyncLikedSongs implements ShouldQueue
                         ->where('songs.title', $title)
                         ->where('songs.artists', $artists)
                         ->where('songs.album', $album)
+                        ->where('songs.preview_url', $preview_url)
+                        ->where('songs.spotify_uri', $spotify_uri)
+                        ->where('songs.images', $images)
                         ->count();
 
                     if ($existingSongCount > 0) {
@@ -131,13 +136,18 @@ class SyncLikedSongs implements ShouldQueue
                             'images' => json_encode($song['track']['album']['images']),
                             'preview_url' => $preview_url,
                             'added_at' => $added_at,
+                            'spotify_uri' => $spotify_uri,
                         ]);
 
                         $likedSongsPlaylist->songs()->attach($songRecord->id);
                     }
                 }
 
-                $playlistName = 'Liked Songs Playlist';
+                $playlistId = null;
+                $playlistName = 'Synctify Liked Songs';
+                if($likedSongsPlaylist->spotify_playlist_id){
+                    $playlistId = $likedSongsPlaylist->spotify_playlist_id;
+                } else{
                 $playlistResponse = Http::withHeaders($headers)
                     ->post('https://api.spotify.com/v1/me/playlists', [
                         'name' => $playlistName,
@@ -145,6 +155,7 @@ class SyncLikedSongs implements ShouldQueue
                     ]);
                 $playlistData = $playlistResponse->json();
                 $playlistId = $playlistData['id'];
+                }
 
                 $playlistTracksEndpoint = "https://api.spotify.com/v1/playlists/{$playlistId}/tracks";
                 $track_uris = [];
@@ -160,6 +171,7 @@ class SyncLikedSongs implements ShouldQueue
                         ->post($playlistTracksEndpoint, ['uris' => $chunk]);
                 }
 
+                $likedSongsPlaylist->spotify_playlist_id = $playlistId;
                 $likedSongsPlaylist->last_sync = Carbon::now();
                 $likedSongsPlaylist->next_sync = Carbon::now()->addHours(6);
                 $likedSongsPlaylist->save();
@@ -171,6 +183,8 @@ class SyncLikedSongs implements ShouldQueue
                 DB::rollBack();
                 Log::info($e->getMessage());
                 event(new SyncLikedSongsCompleted(['status' => 'Sync playlist failed.', 'status_code' => 500, 'user_id' => $user->spotify_id]));
+            } finally {
+                dispatch(new DeletePlaylistSongs($this->access_token, $user->spotify_id));
             }
     }
 }
