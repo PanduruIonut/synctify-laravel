@@ -17,10 +17,7 @@ class DeletePlaylistSongs implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     protected $access_token;
-    protected $refresh_token;
-    protected $expires_in;
     protected $user_spotify_id;
-
 
     public function __construct($access_token, $user_spotify_id)
     {
@@ -30,53 +27,43 @@ class DeletePlaylistSongs implements ShouldQueue
 
     public function handle(): void
     {
-
-        try{
+        try {
             $user = User::where('spotify_id', $this->user_spotify_id)->first();
 
-            if(!$user){
+            if (!$user) {
                 Log::info('No user found with spotify id ' . $this->user_spotify_id);
                 return;
             }
 
-            Log::info('Deleting synctify playlist for user ' . $user->id);
-
             $playlist = $user->playlists()->where('name', 'Liked Songs Playlist')->first();
 
-            if(!$playlist){
+            if (!$playlist || !$playlist->spotify_playlist_id) {
                 Log::info('No synctify playlist found for user ' . $user->id);
                 return;
             }
 
-            $songs = $playlist->songs;
+            Log::info('Deleting Synctify Liked Songs playlist for user ' . $user->id);
 
-            $deleteTracksEndpoint = 'https://api.spotify.com/v1/playlists/' . $playlist->spotify_playlist_id . '/tracks';
             $headers = [
                 'Authorization' => 'Bearer ' . $this->access_token,
                 'Content-Type' => 'application/json',
             ];
 
-            $trackUris = $songs->map(function ($song) {
-                return $song->spotify_uri;
-            })->toArray();
+            // Unfollow (delete) the playlist entirely
+            $response = Http::withHeaders($headers)
+                ->delete('https://api.spotify.com/v1/playlists/' . $playlist->spotify_playlist_id . '/followers');
 
-            $trackChunks = array_chunk($trackUris, 100);
-
-            foreach ($trackChunks as $chunk) {
-                $response = Http::withHeaders($headers)
-                    ->delete($deleteTracksEndpoint, [
-                        'tracks' => array_map(function ($uri) {
-                            return ['uri' => $uri];
-                        }, $chunk),
-                    ]);
-
-                if ($response->failed()) {
-                    Log::error('Failed to delete tracks from playlist. Spotify API response: ' . $response->body());
-                }
+            if ($response->successful()) {
+                Log::info('Successfully deleted playlist from Spotify');
+                // Clear the spotify_playlist_id so a new one is created next sync
+                $playlist->spotify_playlist_id = null;
+                $playlist->save();
+            } else {
+                Log::error('Failed to delete playlist. Spotify API response: ' . $response->body());
             }
-        } catch(Exception $e){
-            Log::info('Failed to delete synctify playlist for user ' . $this->user_spotify_id);
-            Log::info($e);
+        } catch (Exception $e) {
+            Log::error('Failed to delete synctify playlist for user ' . $this->user_spotify_id);
+            Log::error($e->getMessage());
         }
     }
 }

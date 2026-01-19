@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -17,7 +16,6 @@ use App\Events\SyncLikedSongsCompleted;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use App\Models\Playlist;
-use App\Jobs\DeletePlaylistSongs;
 
 class SyncLikedSongs implements ShouldQueue
 {
@@ -29,162 +27,129 @@ class SyncLikedSongs implements ShouldQueue
     public $timeout = 600;
     public $tries = 300;
 
-    /**
-     * Create a new job instance.
-     */
-    public function __construct($access_token, $refresh_token, $expires_in) {
+    public function __construct($access_token, $refresh_token, $expires_in)
+    {
         $this->access_token = $access_token;
         $this->refresh_token = $refresh_token;
         $this->expires_in = $expires_in;
     }
 
-    /**
-     * Execute the job.
-     */
     public function handle(): void
     {
-            $headers = [
-                'Authorization' => 'Bearer ' . $this->access_token,
-                'Content-Type' => 'application/json',
-            ];
+        $headers = [
+            'Authorization' => 'Bearer ' . $this->access_token,
+            'Content-Type' => 'application/json',
+        ];
 
-            $me_response = Http::withHeaders($headers)->get('https://api.spotify.com/v1/me');
-            $user_email = null;
-            if (isset($me_response->json()['email'])) {
-                $user_email = $me_response->json()['email'];
+        $me_response = Http::withHeaders($headers)->get('https://api.spotify.com/v1/me');
+        $user_email = $me_response->json()['email'] ?? null;
+        $spotify_id = $me_response->json()['id'];
+        $name = $me_response->json()['display_name'];
+
+        DB::beginTransaction();
+
+        try {
+            $user = User::where('spotify_id', $spotify_id)->first();
+
+            if (!$user) {
+                $user = User::create([
+                    'email' => $user_email,
+                    'spotify_id' => $spotify_id,
+                    'name' => $name,
+                    'access_token' => $this->access_token,
+                    'refresh_token' => $this->refresh_token,
+                    'expires_in' => $this->expires_in,
+                ]);
             }
-            $spotify_id = $me_response->json()['id'];
-            $name = $me_response->json()['display_name'];
 
-            DB::beginTransaction();
+            if (!$user->playlists()->where('name', 'Liked Songs Playlist')->exists()) {
+                $user->playlists()->create(['name' => 'Liked Songs Playlist']);
+            }
+            $likedSongsPlaylist = $user->playlists()->where('name', 'Liked Songs Playlist')->first();
 
-            try {
-                $user = User::where('spotify_id', $spotify_id)->first();
+            // Get the most recent song's added_at to know when to stop
+            $mostRecentSong = $likedSongsPlaylist->songs()->orderBy('added_at', 'desc')->first();
+            $lastSyncedAt = $mostRecentSong ? Carbon::parse($mostRecentSong->added_at) : null;
 
-                if (!$user) {
-                    $user_data = [
-                        'email' => $user_email,
-                        'spotify_id' => $spotify_id,
-                        'name' => $name,
-                    ];
+            $offset = 0;
+            $limit = 50;
+            $newSongsCount = 0;
+            $shouldStop = false;
 
-                    $user = User::create($user_data);
-                    $user->access_token = $this->access_token;
-                    $user->refresh_token =$this->refresh_token;
-                    $user->expires_in = $this->expires_in;
-                    $user->save();
+            Log::info("Starting sync for user {$user->id}. Last synced song: " . ($lastSyncedAt ? $lastSyncedAt->toDateTimeString() : 'none'));
+
+            while (!$shouldStop) {
+                $endpoint = "https://api.spotify.com/v1/me/tracks?limit={$limit}&offset={$offset}";
+                $response = Http::withHeaders($headers)->get($endpoint);
+                $likedSongs = $response->json()['items'] ?? [];
+
+                if (empty($likedSongs)) {
+                    break;
                 }
 
-                $all_liked_songs = [];
-                $offset = 0;
-                $limit = 50;
+                foreach ($likedSongs as $song) {
+                    $addedAt = Carbon::parse($song['added_at']);
 
-                while (true) {
-                    $endpoint_liked_songs = "https://api.spotify.com/v1/me/tracks?limit={$limit}&offset={$offset}";
-                    $response_liked_songs = Http::withHeaders($headers)->get($endpoint_liked_songs);
-                    Log::info($response_liked_songs);
-                    $liked_songs = $response_liked_songs->json()['items'];
-
-                    if (empty($liked_songs)) {
+                    // If we've reached songs older than our last sync, stop
+                    if ($lastSyncedAt && $addedAt->lte($lastSyncedAt)) {
+                        Log::info("Reached already synced songs at offset {$offset}. Stopping.");
+                        $shouldStop = true;
                         break;
                     }
 
-                    $all_liked_songs = array_merge($all_liked_songs, $liked_songs);
-                    $offset += $limit;
-                }
-
-                if (!$user->playlists()->where('name', 'Liked Songs Playlist')->exists()) {
-                    $user->playlists()->create([
-                        'name' => 'Liked Songs Playlist',
-                    ]);
-                }
-                $likedSongsPlaylist = $user->playlists()->where('name', 'Liked Songs Playlist')->first();
-
-                foreach ($all_liked_songs as $song) {
                     $title = $song['track']['name'];
-
                     $spotify_uri = $song['track']['uri'];
-                    $artistNames = $song['track']['artists'];
-                    $artistNames = array_column($artistNames, 'name');
-                    $artists = implode(', ', $artistNames);
-
+                    $artists = implode(', ', array_column($song['track']['artists'], 'name'));
                     $album = $song['track']['album']['name'];
                     $images = json_encode($song['track']['album']['images']);
                     $preview_url = $song['track']['preview_url'];
-                    $addedAt = Carbon::createFromTimestamp(strtotime($song['added_at']));
                     $added_at = $addedAt->format("Y-m-d H:i:s");
 
-
-
-                    $existingSongCount = Song::join('playlist_song', 'songs.id', '=', 'playlist_song.song_id')
+                    // Check if song already exists
+                    $exists = Song::join('playlist_song', 'songs.id', '=', 'playlist_song.song_id')
                         ->where('playlist_song.playlist_id', $likedSongsPlaylist->id)
-                        ->where('songs.title', $title)
-                        ->where('songs.artists', $artists)
-                        ->where('songs.album', $album)
-                        ->where('songs.preview_url', $preview_url)
                         ->where('songs.spotify_uri', $spotify_uri)
-                        ->where('songs.images', $images)
-                        ->count();
+                        ->exists();
 
-                    if ($existingSongCount > 0) {
-                        continue;
-                    } else {
+                    if (!$exists) {
                         $songRecord = Song::create([
                             'title' => $title,
                             'artists' => $artists,
                             'album' => $album,
-                            'images' => json_encode($song['track']['album']['images']),
+                            'images' => $images,
                             'preview_url' => $preview_url,
                             'added_at' => $added_at,
                             'spotify_uri' => $spotify_uri,
                         ]);
-
                         $likedSongsPlaylist->songs()->attach($songRecord->id);
+                        $newSongsCount++;
                     }
                 }
 
-                $playlistId = null;
-                $playlistName = 'Synctify Liked Songs';
-                if($likedSongsPlaylist->spotify_playlist_id){
-                    $playlistId = $likedSongsPlaylist->spotify_playlist_id;
-                } else{
-                $playlistResponse = Http::withHeaders($headers)
-                    ->post('https://api.spotify.com/v1/me/playlists', [
-                        'name' => $playlistName,
-                        'public' => false,
-                    ]);
-                $playlistData = $playlistResponse->json();
-                $playlistId = $playlistData['id'];
-                }
-
-                $playlistTracksEndpoint = "https://api.spotify.com/v1/playlists/{$playlistId}/tracks";
-                $track_uris = [];
-
-                foreach ($all_liked_songs as $likedSong) {
-                    $track_uris[] = $likedSong['track']['uri'];
-                }
-
-                $tracksChunks = array_chunk($track_uris, 100);
-
-                foreach ($tracksChunks as $chunk) {
-                    Http::withHeaders($headers)
-                        ->post($playlistTracksEndpoint, ['uris' => $chunk]);
-                }
-
-                $likedSongsPlaylist->spotify_playlist_id = $playlistId;
-                $likedSongsPlaylist->last_sync = Carbon::now();
-                $likedSongsPlaylist->next_sync = Carbon::now()->addHours(6);
-                $likedSongsPlaylist->save();
-                DB::commit();
-
-                    event(new SyncLikedSongsCompleted(['status' => 'Sync playlist completed.', 'status_code' => 200, 'user_id' => $user->spotify_id]));
-
-            } catch (Exception $e) {
-                DB::rollBack();
-                Log::info($e->getMessage());
-                event(new SyncLikedSongsCompleted(['status' => 'Sync playlist failed.', 'status_code' => 500, 'user_id' => $user->spotify_id]));
-            } finally {
-                dispatch(new DeletePlaylistSongs($this->access_token, $user->spotify_id));
+                $offset += $limit;
             }
+
+            $likedSongsPlaylist->last_sync = Carbon::now();
+            $likedSongsPlaylist->next_sync = Carbon::now()->addHours(6);
+            $likedSongsPlaylist->save();
+
+            DB::commit();
+
+            Log::info("Sync completed for user {$user->id}. Added {$newSongsCount} new songs.");
+            event(new SyncLikedSongsCompleted([
+                'status' => "Sync completed. Added {$newSongsCount} new songs.",
+                'status_code' => 200,
+                'user_id' => $user->spotify_id
+            ]));
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error("Sync failed: " . $e->getMessage());
+            event(new SyncLikedSongsCompleted([
+                'status' => 'Sync playlist failed.',
+                'status_code' => 500,
+                'user_id' => $spotify_id
+            ]));
+        }
     }
 }
