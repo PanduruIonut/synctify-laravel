@@ -26,3 +26,4 @@ Route::get('/user/get_liked_songs/{id}', [SpotifyController::class, 'get_liked_s
 Route::post('/user/refresh_token', [SpotifyController::class, 'refresh_token']);
 Route::post('/broadcasting/auth', [App\Http\Controllers\BroadcastController::class, 'auth']);
 
+Route::get('/user/on_this_day/{id}', [SpotifyController::class, 'on_this_day']);

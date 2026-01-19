@@ -211,4 +211,41 @@ class SpotifyController extends Controller
             "new_access_token" => $new_access_token
         ], 200);
     }
+
+    public function on_this_day($spotify_id)
+    {
+        $user = User::where('spotify_id', $spotify_id)->first();
+
+        if (!$user) {
+            return response()->json(['error' => 'User not found'], 404);
+        }
+
+        $playlist = Playlist::where('user_id', $user->id)->where('name', 'Liked Songs Playlist')->first();
+
+        if (!$playlist) {
+            return response()->json(['error' => 'No playlist found'], 404);
+        }
+
+        $today = Carbon::now();
+        $currentMonth = $today->month;
+        $currentDay = $today->day;
+        $currentYear = $today->year;
+
+        // Get songs saved on this day in previous years
+        $songs = $playlist->songs()
+            ->whereMonth('songs.added_at', $currentMonth)
+            ->whereDay('songs.added_at', $currentDay)
+            ->whereYear('songs.added_at', '<', $currentYear)
+            ->orderBy('songs.added_at', 'desc')
+            ->get()
+            ->groupBy(function($song) {
+                return Carbon::parse($song->added_at)->year;
+            });
+
+        return response()->json([
+            'date' => $today->format('F j'),
+            'songs_by_year' => $songs,
+            'total_count' => $songs->flatten()->count()
+        ]);
+    }
 }
