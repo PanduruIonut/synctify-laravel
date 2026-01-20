@@ -18,6 +18,11 @@ Laravel API backend for Synctify - a Spotify music library manager.
 - **Import to Liked Songs**: Import from any playlist with duplicate detection
 - **Export to JSON/CSV**: Download liked songs in multiple formats
 
+### Real-Time Updates (Pusher)
+- **WebSocket Notifications**: Real-time sync status updates via Pusher
+- **Private Channels**: User-specific channels for secure broadcasting
+- **Events**: SyncLikedSongsCompleted broadcasts sync results to frontend
+
 ### Smart Features
 - **On This Day**: Query songs added on same date in previous years
 
@@ -34,8 +39,22 @@ Laravel API backend for Synctify - a Spotify music library manager.
 - GET /api/user/{id}/export-liked-songs?format=json|csv - Export liked songs
 - POST /api/user/{id}/playlist/{playlist_id}/import-to-liked - Import to liked
 
+### Broadcasting
+- POST /api/broadcasting/auth - Pusher channel authorization
+
+## Environment Variables
+
+```env
+# Pusher Configuration
+PUSHER_APP_ID=your_app_id
+PUSHER_APP_KEY=your_app_key
+PUSHER_APP_SECRET=your_app_secret
+PUSHER_APP_CLUSTER=eu
+BROADCAST_DRIVER=pusher
+```
+
 ## Tech Stack
-- Laravel 10, MySQL, Redis, Docker
+- Laravel 10, MySQL, Redis, Docker, Pusher
 
 ## Related
 - [Synctify Frontend](https://github.com/PanduruIonut/synctify-nuxt)
