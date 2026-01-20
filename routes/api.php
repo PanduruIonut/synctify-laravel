@@ -33,3 +33,4 @@ Route::get('/user/auth_status/{id}', [SpotifyController::class, 'get_auth_status
 Route::post('/user/sync_playlists', [SpotifyController::class, 'sync_playlists']);
 Route::get('/user/playlists/{id}', [SpotifyController::class, 'get_playlists']);
 Route::get('/user/{spotify_id}/playlist/{playlist_id}', [SpotifyController::class, 'get_playlist_songs']);
+Route::post('/user/{spotify_id}/playlist/{playlist_id}/import-to-liked', [SpotifyController::class, 'import_to_liked_songs']);

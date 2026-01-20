@@ -158,6 +158,8 @@ class SyncPlaylists implements ShouldQueue
                                     'added_at' => $addedAt,
                                     'spotify_uri' => $spotify_uri,
                                 ]);
+                            } else {
+                                $song->update(["added_at" => $addedAt]);
                             }
 
                             $songIds[] = $song->id;

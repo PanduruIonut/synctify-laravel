@@ -369,4 +369,40 @@ class SpotifyController extends Controller
             'songs' => $songs,
         ]);
     }
+
+    public function import_to_liked_songs($spotify_id, $playlist_id)
+    {
+        $user = User::where('spotify_id', $spotify_id)->first();
+
+        if (!$user) {
+            return response()->json(['error' => 'User not found'], 404);
+        }
+
+        $sourcePlaylist = Playlist::where('user_id', $user->id)->where('id', $playlist_id)->first();
+
+        if (!$sourcePlaylist) {
+            return response()->json(['error' => 'Source playlist not found'], 404);
+        }
+
+        $likedSongsPlaylist = Playlist::firstOrCreate(
+            ['user_id' => $user->id, 'name' => 'Liked Songs Playlist'],
+            ['description' => 'Your liked songs from Spotify']
+        );
+
+        $sourceSongIds = $sourcePlaylist->songs()->pluck('songs.id')->toArray();
+        $existingSongIds = $likedSongsPlaylist->songs()->pluck('songs.id')->toArray();
+        $newSongIds = array_diff($sourceSongIds, $existingSongIds);
+
+        $likedSongsPlaylist->songs()->attach($newSongIds);
+
+        $likedSongsPlaylist->tracks_count = $likedSongsPlaylist->songs()->count();
+        $likedSongsPlaylist->save();
+
+        return response()->json([
+            'success' => true,
+            'imported_count' => count($newSongIds),
+            'skipped_count' => count($sourceSongIds) - count($newSongIds),
+            'total_liked_songs' => $likedSongsPlaylist->tracks_count,
+        ]);
+    }
 }
