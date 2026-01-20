@@ -34,3 +34,4 @@ Route::post('/user/sync_playlists', [SpotifyController::class, 'sync_playlists']
 Route::get('/user/playlists/{id}', [SpotifyController::class, 'get_playlists']);
 Route::get('/user/{spotify_id}/playlist/{playlist_id}', [SpotifyController::class, 'get_playlist_songs']);
 Route::post('/user/{spotify_id}/playlist/{playlist_id}/import-to-liked', [SpotifyController::class, 'import_to_liked_songs']);
+Route::get("/user/{spotify_id}/export-liked-songs", [SpotifyController::class, "export_liked_songs"]);

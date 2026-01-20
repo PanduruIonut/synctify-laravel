@@ -405,4 +405,51 @@ class SpotifyController extends Controller
             'total_liked_songs' => $likedSongsPlaylist->tracks_count,
         ]);
     }
+
+    public function export_liked_songs($spotify_id, Request $request)
+    {
+        $format = $request->query("format", "json");
+        $user = User::where("spotify_id", $spotify_id)->first();
+
+        if (!$user) {
+            return response()->json(["error" => "User not found"], 404);
+        }
+
+        $likedPlaylist = Playlist::where("user_id", $user->id)
+            ->where("name", "Liked Songs Playlist")
+            ->first();
+
+        if (!$likedPlaylist) {
+            return response()->json(["error" => "No liked songs found"], 404);
+        }
+
+        $songs = $likedPlaylist->songs()
+            ->orderBy("added_at", "desc")
+            ->get()
+            ->map(function ($song) {
+                return [
+                    "title" => $song->title,
+                    "artists" => $song->artists,
+                    "album" => $song->album,
+                    "added_at" => $song->added_at,
+                    "spotify_uri" => $song->spotify_uri,
+                ];
+            });
+
+        if ($format === "csv") {
+            $csv = "Title,Artists,Album,Added At,Spotify URI\n";
+            foreach ($songs as $song) {
+                $title = str_replace("\"", "\"\"", $song["title"]);
+                $artists = str_replace("\"", "\"\"", $song["artists"]);
+                $album = str_replace("\"", "\"\"", $song["album"]);
+                $csv .= "\"{$title}\",\"{$artists}\",\"{$album}\",\"{$song["added_at"]}\",\"{$song["spotify_uri"]}\"\n";
+            }
+            return response($csv)
+                ->header("Content-Type", "text/csv")
+                ->header("Content-Disposition", "attachment; filename=liked_songs.csv");
+        }
+
+        return response()->json($songs)
+            ->header("Content-Disposition", "attachment; filename=liked_songs.json");
+    }
 }
