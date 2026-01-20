@@ -135,7 +135,7 @@ class SpotifyController extends Controller
 
 
         if ($liked_songs) {
-            $songs = $liked_songs->songs()->get();
+            $songs = $liked_songs->songs()->orderBy('added_at', 'desc')->get();
             return response()->json(['liked_songs' => $songs, 'last_sync' => $liked_songs->last_sync]);
         } else {
             return response()->json(['error' => 'No liked songs found'], 404);
