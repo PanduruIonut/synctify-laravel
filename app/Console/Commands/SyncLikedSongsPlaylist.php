@@ -9,31 +9,29 @@ use App\Models\User;
 
 class SyncLikedSongsPlaylist extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
     protected $signature = 'app:sync-liked-songs-playlist';
+    protected $description = 'Sync liked songs for all active users';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Command description';
-
-    /**
-     * Execute the console command.
-     */
     public function handle()
     {
-        $users = User::all();
+        $users = User::where('is_active', true)->get();
+        
         foreach ($users as $user) {
-            if ($user->is_active) {
-                Log::info('Syncing playlist for user ' . $user->id);
-                SpotifyController::sync_playlist($user->access_token, $user->refresh_token, $user->expires_in);
+            Log::info('Syncing playlist for user ' . $user->id);
+            
+            // Always refresh token before syncing to ensure it's valid
+            try {
+                $newToken = SpotifyController::refresh_access_token(
+                    $user->client_id, 
+                    $user->client_secret, 
+                    $user->refresh_token
+                );
+                
+                // Use the fresh token for sync
+                SpotifyController::sync_playlist($newToken, $user->refresh_token, $user->expires_in);
                 Log::info('Playlist synced for user ' . $user->id);
+            } catch (\Exception $e) {
+                Log::error('Failed to sync for user ' . $user->id . ': ' . $e->getMessage());
             }
         }
     }
