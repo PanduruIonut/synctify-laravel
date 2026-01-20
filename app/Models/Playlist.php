@@ -10,8 +10,24 @@ class Playlist extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'description', 'user_id', 'next_sync', 'last_sync', 'spotify_id'];
+    protected $fillable = [
+        'name',
+        'description',
+        'user_id',
+        'next_sync',
+        'last_sync',
+        'spotify_playlist_id',
+        'image_url',
+        'owner',
+        'is_public',
+        'tracks_count',
+    ];
 
+    protected $casts = [
+        'is_public' => 'boolean',
+        'last_sync' => 'datetime',
+        'next_sync' => 'datetime',
+    ];
 
     public function user()
     {

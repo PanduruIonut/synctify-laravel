@@ -12,6 +12,7 @@ use Illuminate\Support\Carbon;
 use Exception;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use App\Jobs\SyncLikedSongs as SyncLikedSongsJob;
+use App\Jobs\SyncPlaylists as SyncPlaylistsJob;
 
 class SpotifyController extends Controller
 {
@@ -246,6 +247,80 @@ class SpotifyController extends Controller
             'date' => $today->format('F j'),
             'songs_by_year' => $songs,
             'total_count' => $songs->flatten()->count()
+        ]);
+    }
+
+    public function sync_playlists(Request $request)
+    {
+        $data = $request->json()->all();
+        $access_token = $data['access_token'] ?? null;
+        $spotify_id = $data['spotify_id'] ?? null;
+
+        if (!$access_token || !$spotify_id) {
+            return response()->json(['error' => 'Missing access_token or spotify_id'], 400);
+        }
+
+        dispatch(new SyncPlaylistsJob($access_token, $spotify_id));
+
+        return response()->json(['message' => 'Playlist sync job has been started.'], 202);
+    }
+
+    public function get_playlists($spotify_id)
+    {
+        $user = User::where('spotify_id', $spotify_id)->first();
+
+        if (!$user) {
+            return response()->json(['error' => 'User not found'], 404);
+        }
+
+        $playlists = Playlist::where('user_id', $user->id)
+            ->where('name', '!=', 'Liked Songs Playlist')
+            ->orderBy('name')
+            ->get()
+            ->map(function ($playlist) {
+                return [
+                    'id' => $playlist->id,
+                    'name' => $playlist->name,
+                    'description' => $playlist->description,
+                    'image_url' => $playlist->image_url,
+                    'owner' => $playlist->owner,
+                    'is_public' => $playlist->is_public,
+                    'tracks_count' => $playlist->tracks_count,
+                    'last_sync' => $playlist->last_sync,
+                    'spotify_playlist_id' => $playlist->spotify_playlist_id,
+                ];
+            });
+
+        return response()->json(['playlists' => $playlists]);
+    }
+
+    public function get_playlist_songs($spotify_id, $playlist_id)
+    {
+        $user = User::where('spotify_id', $spotify_id)->first();
+
+        if (!$user) {
+            return response()->json(['error' => 'User not found'], 404);
+        }
+
+        $playlist = Playlist::where('user_id', $user->id)
+            ->where('id', $playlist_id)
+            ->first();
+
+        if (!$playlist) {
+            return response()->json(['error' => 'Playlist not found'], 404);
+        }
+
+        $songs = $playlist->songs()->get();
+
+        return response()->json([
+            'playlist' => [
+                'id' => $playlist->id,
+                'name' => $playlist->name,
+                'description' => $playlist->description,
+                'image_url' => $playlist->image_url,
+                'tracks_count' => $playlist->tracks_count,
+            ],
+            'songs' => $songs,
         ]);
     }
 }

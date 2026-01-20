@@ -27,3 +27,8 @@ Route::post('/user/refresh_token', [SpotifyController::class, 'refresh_token']);
 Route::post('/broadcasting/auth', [App\Http\Controllers\BroadcastController::class, 'auth']);
 
 Route::get('/user/on_this_day/{id}', [SpotifyController::class, 'on_this_day']);
+
+// Playlist routes
+Route::post('/user/sync_playlists', [SpotifyController::class, 'sync_playlists']);
+Route::get('/user/playlists/{id}', [SpotifyController::class, 'get_playlists']);
+Route::get('/user/{spotify_id}/playlist/{playlist_id}', [SpotifyController::class, 'get_playlist_songs']);
