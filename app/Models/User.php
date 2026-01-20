@@ -28,6 +28,9 @@ class User extends Authenticatable
         'client_secret',
         'access_token',
         'refresh_token',
+        'auth_status',
+        'auth_failed_at',
+        'auth_error_message',
     ];
 
     /**
@@ -48,6 +51,7 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'auth_failed_at' => 'datetime',
     ];
 
     public function playlists()

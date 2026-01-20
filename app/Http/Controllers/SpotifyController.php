@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\Song;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Exception;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use App\Jobs\SyncLikedSongs as SyncLikedSongsJob;
@@ -61,6 +62,10 @@ class SpotifyController extends Controller
                 $user->access_token = $access_token;
                 $user->refresh_token = $auth_response_data['refresh_token'];
                 $user->expires_in = $auth_response_data['expires_in'];
+                // Reset auth status on successful authorization
+                $user->auth_status = 'valid';
+                $user->auth_failed_at = null;
+                $user->auth_error_message = null;
                 $user->save();
             } else {
                 $user_data = [
@@ -106,7 +111,7 @@ class SpotifyController extends Controller
     {
         try {
             $data = $request->json();
-        } catch (e) {
+        } catch (\Exception $e) {
             throw new HTTPException(400, "Invalid JSON data");
         }
 
@@ -144,7 +149,7 @@ class SpotifyController extends Controller
 
     public static function refresh_access_token($client_id, $client_secret, $refresh_token)
     {
-        $token_url = "https://accounts.spotify.com/api/token";
+        $token_url = 'https://accounts.spotify.com/api/token';
         $data = [
             'scope' => 'user-top-read',
             'grant_type' => 'refresh_token',
@@ -157,15 +162,39 @@ class SpotifyController extends Controller
             'Content-Type' => 'application/x-www-form-urlencoded',
         ])->asForm()->post($token_url, $data);
 
+        $user = User::where('client_id', $client_id)->first();
+
         if ($response->status() == 200) {
             $token_data = $response->json();
             $new_access_token = $token_data['access_token'];
-            $user = User::where('client_id', $client_id)->first();
-            $user->access_token = $new_access_token;
-            $user->save();
+            
+            if ($user) {
+                $user->access_token = $new_access_token;
+                // Reset auth status on successful refresh
+                $user->auth_status = 'valid';
+                $user->auth_failed_at = null;
+                $user->auth_error_message = null;
+                $user->save();
+            }
+            
             return $new_access_token;
         } else {
-            throw new Exception("Token refresh failed");
+            // Mark user as needing re-authorization
+            if ($user) {
+                $user->auth_status = 'needs_reauth';
+                $user->auth_failed_at = now();
+                $user->auth_error_message = $response->body();
+                $user->save();
+            }
+
+            Log::error("Token refresh failed for user", [
+                'client_id' => $client_id,
+                'user_id' => $user ? $user->id : null,
+                'status' => $response->status(),
+                'response' => $response->body()
+            ]);
+
+            throw new Exception("Token refresh failed: " . $response->status());
         }
     }
 
@@ -184,7 +213,7 @@ class SpotifyController extends Controller
             throw new Exception("User not found");
         }
 
-        $token_url = "https://accounts.spotify.com/api/token";
+        $token_url = 'https://accounts.spotify.com/api/token';
         $data = [
             'scope' => 'user-top-read',
             'grant_type' => 'refresh_token',
@@ -211,6 +240,23 @@ class SpotifyController extends Controller
             "message" => "Token refreshed successfully",
             "new_access_token" => $new_access_token
         ], 200);
+    }
+
+    public function get_auth_status($spotify_id)
+    {
+        $user = User::where('spotify_id', $spotify_id)->first();
+
+        if (!$user) {
+            return response()->json(['error' => 'User not found'], 404);
+        }
+
+        return response()->json([
+            'auth_status' => $user->auth_status ?? 'valid',
+            'auth_failed_at' => $user->auth_failed_at,
+            'message' => $user->auth_status === 'needs_reauth' 
+                ? 'Please re-authorize the app to continue syncing' 
+                : 'Authorization is valid'
+        ]);
     }
 
     public function on_this_day($spotify_id)
