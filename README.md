@@ -1,13 +1,43 @@
-Synctify - Backend serves as the bridge between your Spotify account and our frontend application. It provides the following essential functionalities:
+# Synctify Backend
 
-Spotify Authorization: Securely authenticate users with their Spotify accounts, obtaining the necessary access and refresh tokens.
+Laravel API backend for Synctify - a Spotify music library manager. Handles authentication, sync operations, and data management.
 
-User Authentication: Handle user login and user data management for a seamless experience.
+## Features
 
-Spotify Refresh Token Management: Automatically manage and refresh Spotify access tokens to ensure continuous synchronization of liked songs.
+### Authentication
+- **Spotify OAuth**: Secure OAuth 2.0 authentication with Spotify
+- **Token Management**: Automatic access token refresh
+- **Auth Status Tracking**: Monitor authentication state and detect failures
+- **Failure Recovery**: Track auth failures and notify frontend for re-authorization
 
-Liked Songs Sync: Fetch and sync a user's liked songs from their Spotify account, making sure that their favorite tracks are always up to date.
+### Sync Operations
+- **Liked Songs Sync**: Fetch and store users liked songs from Spotify
+- **Playlist Sync**: Sync all user playlists with track details
+- **Date Preservation**: Maintain original added-at timestamps from Spotify
+- **Background Jobs**: Queue-based sync for large libraries
 
-Database Integration: Store synchronized liked songs in a database, enabling users to access their music history effortlessly.
+### Data Management
+- **Import to Liked Songs**: Import songs from any playlist to liked songs with duplicate detection
+- **On This Day**: Find songs added on the same date in previous years
 
-More features to come.
+## API Endpoints
+
+### Authentication
+- POST /api/callback - Spotify OAuth callback
+- POST /api/user/refresh_token - Refresh access token
+- GET /api/user/auth_status/{id} - Check authentication status
+
+### Songs & Playlists
+- GET /api/user/get_liked_songs/{id} - Get users liked songs
+- GET /api/user/playlists/{id} - Get users playlists
+- POST /api/user/{id}/playlist/{playlist_id}/import-to-liked - Import playlist to liked songs
+- POST /api/user/sync_playlists - Trigger playlist sync
+
+## Tech Stack
+- Laravel 10
+- MySQL
+- Redis (Queue and Cache)
+- Docker
+
+## Related
+- [Synctify Frontend](https://github.com/PanduruIonut/synctify-nuxt) - Nuxt 3 frontend
