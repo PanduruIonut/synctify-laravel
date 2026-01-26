@@ -203,8 +203,8 @@ class SpotifyController extends Controller
 
         $user_id = $data['user_id'];
         $refresh_token = $data['refresh_token'];
-        $client_secret = $data['client_id'];
-        $client_id = $data['client_secret'];
+        $client_id = $data["client_id"];
+        $client_secret = $data["client_secret"];
 
         $user = User::where('spotify_id', $user_id)->first();
 
