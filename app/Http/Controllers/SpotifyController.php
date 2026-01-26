@@ -36,7 +36,7 @@ class SpotifyController extends Controller
         $auth_url = 'https://accounts.spotify.com/api/token';
         $auth_response = Http::withHeaders($headers)->asForm()->post($auth_url, [
             'grant_type' => 'authorization_code',
-            'scope' => 'user-top-read',
+            'scope' => 'user-library-read user-library-modify user-top-read playlist-read-private playlist-modify-public playlist-modify-private',
             'code' => $code,
             'redirect_uri' => $REDIRECT_URI,
             'client_id' => $CLIENT_ID,
@@ -151,7 +151,6 @@ class SpotifyController extends Controller
     {
         $token_url = 'https://accounts.spotify.com/api/token';
         $data = [
-            'scope' => 'user-top-read',
             'grant_type' => 'refresh_token',
             'refresh_token' => $refresh_token,
             'client_id' => $client_id,
@@ -215,7 +214,6 @@ class SpotifyController extends Controller
 
         $token_url = 'https://accounts.spotify.com/api/token';
         $data = [
-            'scope' => 'user-top-read',
             'grant_type' => 'refresh_token',
             'refresh_token' => $refresh_token,
             'client_id' => $client_id,
