@@ -249,6 +249,7 @@ class SpotifyController extends Controller
         }
 
         return response()->json([
+            'access_token' => $user->access_token,
             'auth_status' => $user->auth_status ?? 'valid',
             'auth_failed_at' => $user->auth_failed_at,
             'message' => $user->auth_status === 'needs_reauth' 
