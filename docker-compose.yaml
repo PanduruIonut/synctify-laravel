@@ -8,7 +8,7 @@ services:
     volumes:
       - ./:/var/www/html
     ports:
-      - "8001:8000"
+      - "127.0.0.1:8001:8000"
     environment:
       DB_CONNECTION: mysql
       DB_HOST: mysql_db
@@ -28,14 +28,14 @@ services:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: laravel
     ports:
-      - "3309:3306"
+      - "127.0.0.1:3309:3306"
     networks:
       - synctify-network
 
   redis:
     image: redis:alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     networks:
       - synctify-network
 
@@ -45,7 +45,7 @@ services:
       dockerfile: ./dockerfiles/echo/Dockerfile
     working_dir: /app
     ports:
-      - "6001:6001"
+      - "127.0.0.1:6001:6001"
     networks:
       - synctify-network
 
