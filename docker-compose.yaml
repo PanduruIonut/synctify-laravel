@@ -2,6 +2,7 @@ version: "3"
 services:
 
   laravel-docker:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: ./dockerfiles/laravel/Dockerfile
@@ -23,6 +24,7 @@ services:
       - synctify-network
 
   mysql_db:
+    restart: unless-stopped
     image: linuxserver/mariadb:alpine
     environment:
       MYSQL_ROOT_PASSWORD: root
@@ -33,6 +35,7 @@ services:
       - synctify-network
 
   redis:
+    restart: unless-stopped
     image: redis:alpine
     ports:
       - "127.0.0.1:6379:6379"
@@ -40,6 +43,7 @@ services:
       - synctify-network
 
   echo-server:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: ./dockerfiles/echo/Dockerfile
