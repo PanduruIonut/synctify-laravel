@@ -48,6 +48,10 @@ services:
       context: .
       dockerfile: ./dockerfiles/echo/Dockerfile
     working_dir: /app
+    # --force clears a stale laravel-echo-server.lock left by an unclean kill.
+    # Without it the lock survives in the container layer across restarts and
+    # wedges the service in an infinite restart loop.
+    command: ["laravel-echo-server", "start", "--force"]
     ports:
       - "127.0.0.1:6001:6001"
     networks:
