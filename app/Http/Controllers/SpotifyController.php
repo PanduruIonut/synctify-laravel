@@ -169,6 +169,16 @@ class SpotifyController extends Controller
             
             if ($user) {
                 $user->access_token = $new_access_token;
+                // Spotify rotates the refresh token periodically. When it
+                // returns a new one the previous token is invalidated, so
+                // failing to persist it here breaks the next refresh and
+                // forces a manual re-login.
+                if (!empty($token_data["refresh_token"])) {
+                    $user->refresh_token = $token_data["refresh_token"];
+                }
+                if (!empty($token_data["expires_in"])) {
+                    $user->expires_in = $token_data["expires_in"];
+                }
                 // Reset auth status on successful refresh
                 $user->auth_status = 'valid';
                 $user->auth_failed_at = null;
